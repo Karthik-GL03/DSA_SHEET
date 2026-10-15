@@ -1,0 +1,32 @@
+name: Daily DSA Streak Sync & Telegram Alert Engine
+
+on:
+  schedule:
+    # Runs at 18:30 UTC daily (offset from exact hour to avoid GitHub Actions runner queue congestion)
+    - cron: '30 18 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI for testing
+
+jobs:
+  sync-and-notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Unified DSA Tracker Cron Endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          TARGET_URL="${APP_URL:-https://unified-dsa-tracker.vercel.app}/api/cron"
+          echo "Dispatching streak verification request to $TARGET_URL..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$TARGET_URL" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json")
+          
+          echo "$RESPONSE"
+          
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+            echo "Streak sync and Telegram alerts dispatched successfully."
+          else
+            echo "Warning: Sync endpoint returned HTTP status $STATUS"
+            exit 1
+          fi
