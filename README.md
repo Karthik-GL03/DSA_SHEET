@@ -1,112 +1,174 @@
-# AlgoPulse — Unified Data Structures & Algorithms Tracking Platform
-> **Zero-Cost, Multi-Platform DSA Pedagogy, Consistency Streak & Automation Platform**
+# DSA Flow — Personal Coding Tracker
 
-AlgoPulse is a full-featured, automated DSA tracking platform built according to the architectural blueprint detailed in *"Architecting a Unified Data Structures and Algorithms Tracking Platform: A Comprehensive Guide to Pedagogy, System Design, and Automation"*.
+> A responsive, real-time web application for tracking DSA practice, topic coverage, consistency streaks, time spent, revision notes, and public coding-platform profiles.
 
----
-
-## 🌟 Core Architectural Pillars
-
-### 1. Foundational Pedagogy & Problem Sheets
-- **NeetCode 150**: Pattern-centric curriculum categorized across 18 algorithmic patterns (Arrays & Hashing, Two Pointers, Sliding Window, Monotonic Stacks, Binary Search, Trees, Graphs, DP, Greedy, etc.).
-- **Striver A2Z DSA Sheet**: Exhaustive, step-by-step linear progression spanning Step 1 (Basics & Sorting) through Step 16+ (Advanced DP, Graphs, Tries).
-- **Algorithmic Weak Topics Radar**: Automatically maps accepted platform submissions against curriculum topics and flags categories with completion rates under 40% for targeted revision.
-
-### 2. Multi-Platform Data Ingestion
-- **LeetCode GraphQL API Engine**:
-  - `recentAcSubmissionList` extracts real accepted submissions.
-  - `userProfileCalendar` extracts the 365-day submission calendar, active streak, and total active days.
-- **Codeforces Official REST API**:
-  - `user.info`: Live rating, max rating, and competitive rank title.
-  - `user.status`: Extracts unique accepted (`verdict == OK`) problems.
-  - `user.rating`: Live rating history chart tracking contest trajectory.
-- **GeeksforGeeks Scraper**:
-  - Server-side regex and Next.js hydration parser with Cloudflare resilience.
-  - Standalone `scraper/gfg_scraper.py` using `curl_cffi` browser TLS impersonation (`impersonate="chrome"`) to bypass JA3/JA4 fingerprinting.
-
-### 3. Consistency Enforcer & Push Notification Engine
-- **Telegram Bot API**:
-  - Zero-cost push notifications sent straight to user devices.
-  - Automated rules:
-    - *Daily Streak Warning*: Triggers if user has 0 solves logged by 10:00 PM.
-    - *Streak Milestones*: Celebrates 7-day, 30-day, and 100-day streaks.
-    - *Contest Radar*: Alerts 24 hours & 2 hours before Codeforces/LeetCode contests.
-    - *Weekly Summary*: Weekly performance recap sent every Monday.
-- **GitHub Actions Serverless Cron**:
-  - Scheduled daily at `30 18 * * *` (18:30 UTC, offset to prevent runner queue delays).
-  - Triggers `/api/cron` securely using a bearer secret.
-
-### 4. Interactive Analytics & Revision Vault
-- **365-Day GitHub/LeetCode Activity Heatmap**: Interactive calendar with tooltips and streak counters.
-- **Revision Vault**: Notes database with custom tagging (`Must-Revise`, `Two-Pointers`, `DP`), time/space complexity notes, and markdown takeaways.
-- **Friends & Peer Leaderboard**: Compare solves, active streaks, and ratings against peers.
+Developed by **[@Karthik-GL03](https://github.com/Karthik-GL03)** | Repository: **[https://github.com/Karthik-GL03/dsa-flow-tracker](https://github.com/Karthik-GL03/dsa-flow-tracker)**
 
 ---
 
-## 🚀 Quick Start Guide
+## What works in this application
 
-### 1. Installation
-Clone the repository and install dependencies:
-```bash
+- **Responsive Analytics Dashboard**: Real-time KPI cards (aggregate solves, live platform breakdown, Codeforces rating, LeetCode global ranking), live latency monitors, and quick preset selectors.
+- **365-Day Practice Calendar & Heatmap**: Computes activity levels directly from verified submission timestamps across LeetCode and Codeforces with hover inspection.
+- **Pedagogical Curriculum Coverage**: Full native indexing of **NeetCode 150** (18 pattern categories) and **Striver A2Z DSA Sheet** (16+ steps) with automatic solve matching, progress percentages, and manual checkboxes.
+- **Algorithmic Weak Topics Radar**: Flags curriculum categories where completion is below 40% to guide deliberate, targeted problem solving.
+- **Searchable Problem & Revision Notes Vault**: Add, edit, and search personal revision notes with tags (`#Must-Revise`, `#Two-Pointers`, `#DP`), algorithmic approach notes, and time/space complexities.
+- **Competitive Contest Radar**: Live countdown timers for upcoming Codeforces rounds, LeetCode Weekly & Biweekly Contests, and CodeChef contests with Codeforces rating progression chart.
+- **Real-Time Peer Leaderboard**: Add peers by handle and live-query their official profiles to compare consistency streaks and solve volume.
+- **Dual Storage Architecture**:
+  - **Local-Browser Mode**: Ready out-of-the-box. All records and notes persist in the browser's `localStorage` without requiring external database credentials.
+  - **Cloud Mode with Supabase**: Optional managed PostgreSQL database with Row-Level Security (`supabase/schema.sql`) for secure multi-device synchronization.
+- **Real-Time Automated Streak Engine**:
+  - Daily consistency check banner with confetti celebration on goal completion.
+  - Free push notifications dispatched to your mobile device via the **Telegram Bot API**.
+  - **GitHub Actions Serverless Cron**: Pre-configured workflow running daily at `18:30 UTC` to audit streaks at zero server cost.
+
+---
+
+## Important limits — read before using it as your only record
+
+1. **Deployable starter, not already hosted**: You need to create your own GitHub repository (`https://github.com/Karthik-GL03/dsa-flow-tracker`), Vercel project, and (if you want cloud database sync) Supabase project.
+2. **Local mode is per browser**: Clearing site cache or local data can wipe unexported local records. Use the exported schema and notes backup if relying solely on local storage.
+3. **Cloud mode requires Supabase setup**: Never expose a Supabase `service_role` key in the frontend. Only use the project's publishable/anon key with the supplied Row-Level Security schema (`supabase/schema.sql`).
+4. **Platform API constraints**:
+   - **Codeforces**: The public official API enforces a rate limit of 1 call every 2 seconds. The app parses the latest 2,000 submissions and deduplicates accepted solutions (`verdict === "OK"`).
+   - **LeetCode**: LeetCode does not provide a public REST API. The app uses server-side Next.js GraphQL proxies to extract accepted submissions and yearly submission calendars. If LeetCode rate limits, the app recovers gracefully.
+   - **GeeksforGeeks**: GFG does not offer an official public API and protects its frontend with Web Application Firewalls (Cloudflare). The app employs a server-side parser and a dedicated TLS impersonation script (`scraper/gfg_scraper.py`).
+5. **Background reminders require automation**: Service workers alone cannot wake a sleeping browser. Automated notifications when the browser is closed are powered by the included GitHub Actions cron workflow (`.github/workflows/daily-streak-sync.yml`) and Telegram Bot API.
+
+---
+
+## A. Run it locally on Windows
+
+### 1. Prerequisites
+- **Node.js LTS** (v18+ or v20+) installed from [https://nodejs.org/](https://nodejs.org/).
+- **Git** installed from [https://git-scm.com/downloads](https://git-scm.com/downloads).
+- Your GitHub account: **[https://github.com/Karthik-GL03](https://github.com/Karthik-GL03)**.
+
+### 2. Clone and run the project
+Open PowerShell or your terminal:
+
+```powershell
+# Navigate to your workspace directory
 cd e:\DSA
-npm install
-```
 
-### 2. Run the Development Server
-```bash
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+Open **`http://localhost:3000`** in your browser. You can start tracking immediately in local mode.
+
+### 3. Build and test production build
+```powershell
+npm run build
+npm run start
+```
+The server will compile an optimized production build and serve it at `http://localhost:3000`.
 
 ---
 
-## ⚙️ Configuration & Environment Variables
+## B. Enable real cloud accounts and cross-device saving with Supabase
 
+### 1. Create a Supabase project
+1. Go to [https://supabase.com/](https://supabase.com/) and create a free project.
+2. Navigate to **SQL Editor → New query**.
+3. Open [`supabase/schema.sql`](supabase/schema.sql) from this project, copy the entire SQL script, and click **Run**.
+4. In Supabase, go to **Project Settings → API** and copy:
+   - `Project URL`
+   - `anon public key` (never use `service_role` in client code).
+5. In **Authentication → URL Configuration**, add your local address (`http://localhost:3000`) and your production Vercel domain.
+
+### 2. Add environment variables locally
 Create a `.env.local` file in the root directory:
 
 ```env
-# Optional Supabase Connection (for cloud persistence across devices)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 
-# Telegram Bot API (for automated push notifications)
+# Telegram Bot API (for instant phone alerts)
 TELEGRAM_BOT_TOKEN=7123456789:ABCdefGhIJKlmNoPQRstuVWXyz
 TELEGRAM_CHAT_ID=123456789
 
-# Secret key for GitHub Actions Cron Webhook
-CRON_SECRET=dsa_tracker_cron_secret
+# Secret key for GitHub Actions Cron webhook
+CRON_SECRET=karthik_dsa_tracker_secret_2026
 ```
 
----
-
-## 🤖 2-Minute Telegram Bot Setup (Free)
-1. Open Telegram and search for **[@BotFather](https://t.me/BotFather)**.
-2. Send `/newbot`, give your bot a name, and copy the **HTTP API Token**.
-3. Open **[@userinfobot](https://t.me/userinfobot)** or start your new bot to find your numeric **Chat ID**.
-4. Open the AlgoPulse app, click the **Bell Icon** (Notification Settings), paste your token and chat ID, and click **"Send Test Notification"**.
+Restart `npm run dev` after changing environment variables.
 
 ---
 
-## 📅 GitHub Actions Automation Setup
-The workflow file is located at [`.github/workflows/daily-streak-sync.yml`](.github/workflows/daily-streak-sync.yml).
+## C. Deploy to a public URL with Vercel and GitHub
 
-To enable daily automated streak checks in your GitHub repository:
-1. Push your repository to GitHub.
-2. Navigate to **Settings > Secrets and variables > Actions**.
-3. Add repository secrets:
-   - `CRON_SECRET`: Match the secret set in your app.
-   - `APP_URL`: Your deployed URL (e.g. `https://your-app.vercel.app`).
-4. GitHub Actions will trigger your tracker automatically at 18:30 UTC every day.
+### 1. Push code to your GitHub repository
+In PowerShell in `e:\DSA`:
+
+```powershell
+git add .
+git commit -m "Build DSA Flow tracker for Karthik-GL03"
+git branch -M main
+git remote add origin https://github.com/Karthik-GL03/dsa-flow-tracker.git
+git push -u origin main
+```
+
+*(If you haven't created the repository on GitHub yet, open [https://github.com/new](https://github.com/new), name it `dsa-flow-tracker`, and then run the push command above).*
+
+### 2. Import into Vercel
+1. Visit [https://vercel.com/new](https://vercel.com/new) and sign in with GitHub.
+2. Import **`Karthik-GL03/dsa-flow-tracker`**.
+3. Vercel automatically detects **Next.js**. The build settings and [`vercel.json`](vercel.json) are pre-configured.
+4. Under **Environment Variables**, add:
+   - `CRON_SECRET`
+   - `TELEGRAM_BOT_TOKEN` *(optional)*
+   - `TELEGRAM_CHAT_ID` *(optional)*
+   - `NEXT_PUBLIC_SUPABASE_URL` *(if using Supabase)*
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` *(if using Supabase)*
+5. Click **Deploy**. In under a minute, your tracker is live globally on your own `*.vercel.app` domain.
 
 ---
 
-## 🗄️ Supabase Relational Database Schema
-The complete PostgreSQL DDL with Row-Level Security (RLS) is located at [`supabase/schema.sql`](supabase/schema.sql).
-It defines tables for `users`, `external_accounts`, `problems`, `solves`, `daily_activity`, `curriculum`, `contests`, `participations`, `notes`, `tags`, and `notifications`.
+## D. How integrations work
+
+### Codeforces
+The app uses the official Codeforces endpoint:
+```
+https://codeforces.com/api/user.status?handle=HANDLE&from=1&count=2000
+```
+It filters for `verdict === "OK"`, deduplicates solved problems by `contestId-index`, calculates submission dates for the heatmap, and computes difficulty breakdowns based on problem ratings (<1300 Easy, 1300–1800 Medium, >1800 Hard).
+
+### LeetCode
+The app proxies requests via a server-side route to `https://leetcode.com/graphql`:
+- `recentAcSubmissionList`: Extracts real accepted submissions with slugs and timestamps.
+- `userProfileCalendar`: Extracts the 365-day submission calendar, current streak, and active days.
+- `matchedUser`: Retrieves total solves by difficulty and global rank.
+
+### GeeksforGeeks
+Profile statistics are extracted via server-side HTML and Next.js hydration parsing. For advanced scraping scenarios, [`scraper/gfg_scraper.py`](scraper/gfg_scraper.py) demonstrates browser TLS fingerprint spoofing via `curl_cffi` to bypass Cloudflare JA3/JA4 checks.
 
 ---
 
-## 📁 Project Architecture
+## E. What “real-time” means here
+
+- **Client Reactivity**: The UI updates immediately when you log a solve, check off a curriculum problem, or add a note.
+- **Live Stream & Auto-Sync**: The dashboard maintains a live telemetry ping (`LC: ~240ms`, `CF: ~180ms`) and auto-refreshes every 60 seconds with live countdown timers.
+- **Genuine API Timestamps**: Heatmap activity squares and streak numbers are calculated directly from user timestamps returned by the platforms.
+- **Peer Leaderboard Live Query**: Adding a friend triggers live queries to LeetCode and Codeforces to fetch their genuine solves and contest ratings.
+- **Background Cron Alerts**: GitHub Actions (`.github/workflows/daily-streak-sync.yml`) executes at `18:30 UTC` daily to audit user activity and trigger Telegram push notifications when streaks are in danger.
+
+---
+
+## F. Date / streak rules
+
+- **Day boundaries**: Day calculations use the browser's local date for logging practice.
+- **Active Streak Calculation**: A streak counts consecutive days with at least 1 verified solve. If no solves are logged yet today, yesterday still counts toward the active streak until the day concludes.
+- **Missed Day Warnings**: Triggered if total solves logged for the current calendar date evaluate to 0 by the notification threshold (10:00 PM).
+
+---
+
+## G. Project File Structure
+
 ```
 DSA/
 ├── .github/workflows/
@@ -114,19 +176,19 @@ DSA/
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── cron/             # Scheduled audit endpoint
-│   │   │   ├── notify/telegram/  # Telegram Bot API dispatcher
+│   │   │   ├── cron/             # Scheduled streak audit endpoint
+│   │   │   ├── notify/telegram/  # Telegram Bot API gateway
 │   │   │   └── platforms/        # Server-side CORS-free proxies
-│   │   │       ├── leetcode/     # LeetCode GraphQL query
-│   │   │       ├── codeforces/   # Codeforces REST API
-│   │   │       ├── gfg/          # GeeksforGeeks scraper
+│   │   │       ├── leetcode/     # LeetCode GraphQL query engine
+│   │   │       ├── codeforces/   # Codeforces official REST API
+│   │   │       ├── gfg/          # GFG parser
 │   │   │       └── contests/     # Live contest aggregator
-│   │   ├── globals.css           # Custom dark theme & heatmap styles
+│   │   ├── globals.css           # Dark theme & heatmap styling
 │   │   ├── layout.tsx            # Root layout & metadata
 │   │   └── page.tsx              # Main dashboard application
 │   ├── components/
 │   │   ├── Navbar.tsx            # Navigation & streak counter
-│   │   ├── TodayCheckInBanner.tsx# Daily consistency banner
+│   │   ├── TodayCheckInBanner.tsx# Consistency banner & celebration
 │   │   ├── ActivityHeatmap.tsx   # 365-day commit heatmap
 │   │   ├── DashboardOverview.tsx # KPI cards & distribution charts
 │   │   ├── CurriculumTracker.tsx # Striver A2Z & NeetCode 150 hub
@@ -146,6 +208,7 @@ DSA/
 │   └── gfg_scraper.py            # TLS fingerprint spoofing script
 ├── supabase/
 │   └── schema.sql                # Production PostgreSQL DDL with RLS
+├── DEPLOYMENT.md                 # Step-by-step cloud deployment guide
 ├── vercel.json                   # Vercel deployment & cron config
 ├── package.json
 └── README.md

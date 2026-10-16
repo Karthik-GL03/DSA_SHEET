@@ -1,6 +1,12 @@
 {
-  "name": "unified-dsa-tracker",
+  "name": "dsa-flow-tracker",
   "version": "1.0.0",
+  "description": "DSA Flow — Personal Coding Tracker for Karthik-GL03. Responsive, real-time tracking of DSA practice, topic coverage, consistency streaks, and coding-platform profiles.",
+  "author": "Karthik-GL03 <karthikgl.cs24@bmsce.ac.in>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Karthik-GL03/dsa-flow-tracker.git"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
