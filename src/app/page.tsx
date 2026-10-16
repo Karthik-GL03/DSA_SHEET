@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { TodayCheckInBanner } from '@/components/TodayCheckInBanner';
 import { ActivityHeatmap } from '@/components/ActivityHeatmap';
@@ -41,6 +41,12 @@ export default function HomePage() {
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
   const [activeNoteToEdit, setActiveNoteToEdit] = useState<ProblemNote | null>(null);
 
+  // Latency telemetry
+  const [latency, setLatency] = useState<{ leetcode: number | null; codeforces: number | null }>({
+    leetcode: null,
+    codeforces: null,
+  });
+
   // User Profile State
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
 
@@ -54,24 +60,8 @@ export default function HomePage() {
     syncErrors: {},
   });
 
-  // Solved Slugs Set
-  const [solvedSlugs, setSolvedSlugs] = useState<Set<string>>(new Set([
-    'two-sum',
-    'valid-anagram',
-    'contains-duplicate',
-    'binary-search',
-    'reverse-linked-list',
-    'valid-parentheses',
-    'maximum-subarray',
-    'climbing-stairs',
-    'best-time-to-buy-and-sell-stock',
-    'invert-binary-tree',
-    'single-number',
-    'merge-two-sorted-lists',
-    'search-a-2d-matrix',
-    'koko-eating-bananas',
-    '3sum'
-  ]));
+  // Solved Slugs Set (purely populated from live API data & user checkboxes)
+  const [solvedSlugs, setSolvedSlugs] = useState<Set<string>>(new Set());
 
   // Notes state
   const [notes, setNotes] = useState<ProblemNote[]>(INITIAL_NOTES);
@@ -82,24 +72,17 @@ export default function HomePage() {
   // Contests list
   const [contests, setContests] = useState<ContestItem[]>([]);
 
-  // Activity days (last 365 days)
-  const [activities, setActivities] = useState<DayActivity[]>(() => {
-    // Generate initial realistic sample distribution
-    const sampleCalendar: Record<string, number> = {};
-    const now = Math.floor(Date.now() / 1000);
-    // Add solves on recent days
-    for (let i = 0; i < 45; i++) {
-      if (Math.random() > 0.25) {
-        sampleCalendar[(now - i * 86400).toString()] = Math.floor(Math.random() * 4) + 1;
-      }
-    }
-    return generateYearActivityData(sampleCalendar);
-  });
+  // Activity days (last 365 days) - starts clean, populated strictly by real API calendars
+  const [activities, setActivities] = useState<DayActivity[]>(() => generateYearActivityData({}));
 
-  // Streak calculations
+  // Dynamic streaks computed strictly from genuine activity data
   const { currentStreak, longestStreak, activeDays } = useMemo(() => {
     return calculateStreaks(activities);
   }, [activities]);
+
+  // Keep ref to avoid stale state in auto-refresh timers
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   // Load from LocalStorage on mount
   useEffect(() => {
@@ -109,7 +92,7 @@ export default function HomePage() {
     const savedNotes = getLocalStorage<ProblemNote[]>('dsa_tracker_notes', INITIAL_NOTES);
     setNotes(savedNotes);
 
-    const savedSlugs = getLocalStorage<string[]>('dsa_tracker_solved_slugs', Array.from(solvedSlugs));
+    const savedSlugs = getLocalStorage<string[]>('dsa_tracker_solved_slugs', []);
     setSolvedSlugs(new Set(savedSlugs));
 
     const savedRegistered = getLocalStorage<string[]>('dsa_tracker_registered_contests', []);
@@ -123,8 +106,25 @@ export default function HomePage() {
       })
       .catch(err => console.error('Error fetching contests:', err));
 
-    // Initial platform sync with default or stored handles
-    handleSync(savedProfile.handles);
+    // If handles exist, run live sync immediately
+    if (savedProfile.handles.leetcode || savedProfile.handles.codeforces || savedProfile.handles.geeksforgeeks) {
+      handleSync(savedProfile.handles);
+    } else {
+      // Default to live preset so the dashboard is interactive out-of-the-box
+      handleQuickLoadPreset('neal_wu', 'neal');
+    }
+  }, []);
+
+  // Set up 60-second real-time auto-sync polling
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentHandles = profileRef.current.handles;
+      if (currentHandles.leetcode || currentHandles.codeforces || currentHandles.geeksforgeeks) {
+        handleSync(currentHandles, true);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Save changes to localStorage
@@ -143,21 +143,30 @@ export default function HomePage() {
     setLocalStorage('dsa_tracker_solved_slugs', Array.from(newSlugs));
   };
 
-  // Sync execution handler
-  const handleSync = useCallback(async (handles: { leetcode: string; codeforces: string; geeksforgeeks: string }) => {
-    setPlatformState(prev => ({ ...prev, isSyncing: true, syncErrors: {} }));
-    const errors: Record<string, string> = {};
+  // Real-time Sync execution handler
+  const handleSync = useCallback(async (
+    handles: { leetcode: string; codeforces: string; geeksforgeeks: string },
+    isBackground = false
+  ) => {
+    if (!isBackground) {
+      setPlatformState(prev => ({ ...prev, isSyncing: true, syncErrors: {} }));
+    }
 
+    const errors: Record<string, string> = {};
     let lcData = null;
     let cfData = null;
     let gfgData = null;
     const newSlugs = new Set(solvedSlugs);
     let mergedCalendar: Record<string, number> = {};
 
-    // 1. Sync LeetCode
+    // 1. Sync LeetCode in Real Time
     if (handles.leetcode) {
+      const tStart = performance.now();
       try {
         const res = await fetch(`/api/platforms/leetcode?username=${encodeURIComponent(handles.leetcode)}`);
+        const tEnd = performance.now();
+        setLatency(prev => ({ ...prev, leetcode: Math.round(tEnd - tStart) }));
+
         const data = await res.json();
         if (res.ok && !data.error) {
           lcData = data;
@@ -177,13 +186,23 @@ export default function HomePage() {
       }
     }
 
-    // 2. Sync Codeforces
+    // 2. Sync Codeforces in Real Time
     if (handles.codeforces) {
+      const tStart = performance.now();
       try {
         const res = await fetch(`/api/platforms/codeforces?handle=${encodeURIComponent(handles.codeforces)}`);
+        const tEnd = performance.now();
+        setLatency(prev => ({ ...prev, codeforces: Math.round(tEnd - tStart) }));
+
         const data = await res.json();
         if (res.ok && !data.error) {
           cfData = data;
+          if (data.submissionCalendar) {
+            // Merge Codeforces calendar
+            for (const [day, count] of Object.entries(data.submissionCalendar)) {
+              mergedCalendar[day] = (mergedCalendar[day] || 0) + (count as number);
+            }
+          }
           if (Array.isArray(data.recentSubmissions)) {
             data.recentSubmissions.forEach((s: any) => {
               const cfSlug = s.problemName?.toLowerCase().replace(/[^a-z0-9]/g, '-');
@@ -198,7 +217,7 @@ export default function HomePage() {
       }
     }
 
-    // 3. Sync GeeksforGeeks
+    // 3. Sync GeeksforGeeks in Real Time
     if (handles.geeksforgeeks) {
       try {
         const res = await fetch(`/api/platforms/gfg?handle=${encodeURIComponent(handles.geeksforgeeks)}`);
@@ -213,25 +232,47 @@ export default function HomePage() {
       }
     }
 
-    // Update heatmap activities if calendar is available
+    // Update heatmap activities strictly from real merged calendar
     if (Object.keys(mergedCalendar).length > 0) {
       const generated = generateYearActivityData(mergedCalendar);
       setActivities(generated);
+      const computed = calculateStreaks(generated);
+      updateProfile({
+        ...profileRef.current,
+        handles,
+        currentStreak: computed.currentStreak,
+        longestStreak: computed.longestStreak,
+      });
     }
 
     updateSolvedSlugs(newSlugs);
 
-    setPlatformState({
-      leetcode: lcData || platformState.leetcode,
-      codeforces: cfData || platformState.codeforces,
-      geeksforgeeks: gfgData || platformState.geeksforgeeks,
+    setPlatformState(prev => ({
+      leetcode: lcData || prev.leetcode,
+      codeforces: cfData || prev.codeforces,
+      geeksforgeeks: gfgData || prev.geeksforgeeks,
       lastSyncedAt: new Date().toLocaleTimeString(),
       isSyncing: false,
       syncErrors: errors,
-    });
-  }, [solvedSlugs, platformState.leetcode, platformState.codeforces, platformState.geeksforgeeks]);
+    }));
+  }, [solvedSlugs]);
 
-  // Toggle problem solve status manually or via checkbox
+  // Quick preset loader (e.g. Neal Wu or Tourist)
+  const handleQuickLoadPreset = (lc: string, cf: string) => {
+    const updated = {
+      ...profile,
+      name: cf ? `${cf}` : (lc || 'Competitor'),
+      handles: {
+        leetcode: lc,
+        codeforces: cf,
+        geeksforgeeks: '',
+      }
+    };
+    updateProfile(updated);
+    handleSync(updated.handles);
+  };
+
+  // Toggle problem solve status manually
   const handleToggleSolve = (slug: string, solved: boolean) => {
     const nextSlugs = new Set(solvedSlugs);
     if (solved) {
@@ -260,7 +301,6 @@ export default function HomePage() {
       return updated;
     });
 
-    // Update profile streak
     updateProfile({
       ...profile,
       currentStreak: profile.currentStreak + 1,
@@ -313,7 +353,6 @@ export default function HomePage() {
       nextSet.delete(contestId);
     } else {
       nextSet.add(contestId);
-      // If Telegram is enabled, send instant reminder confirmation
       if (profile.telegramNotificationsEnabled && profile.telegramBotToken && profile.telegramChatId) {
         fetch('/api/notify/telegram', {
           method: 'POST',
@@ -331,7 +370,7 @@ export default function HomePage() {
     setLocalStorage('dsa_tracker_registered_contests', Array.from(nextSet));
   };
 
-  // Add / remove friends
+  // Add / remove / update friends
   const handleAddFriend = (friend: FriendProfile) => {
     const updated = [...profile.friends, friend];
     updateProfile({ ...profile, friends: updated });
@@ -339,6 +378,11 @@ export default function HomePage() {
 
   const handleRemoveFriend = (id: string) => {
     const updated = profile.friends.filter(f => f.id !== id);
+    updateProfile({ ...profile, friends: updated });
+  };
+
+  const handleUpdateFriend = (id: string, partial: Partial<FriendProfile>) => {
+    const updated = profile.friends.map(f => f.id === id ? { ...f, ...partial } : f);
     updateProfile({ ...profile, friends: updated });
   };
 
@@ -398,6 +442,8 @@ export default function HomePage() {
               solves={[]}
               onOpenSync={() => setIsSyncModalOpen(true)}
               onNavigateTab={(tab) => setActiveTab(tab)}
+              onQuickLoadPreset={handleQuickLoadPreset}
+              latency={latency}
             />
 
             {/* Weak Topics Section on Dashboard */}
@@ -457,6 +503,7 @@ export default function HomePage() {
             userRating={platformState.codeforces?.rating || 1540}
             onAddFriend={handleAddFriend}
             onRemoveFriend={handleRemoveFriend}
+            onUpdateFriend={handleUpdateFriend}
           />
         )}
 
@@ -468,7 +515,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-300">AlgoPulse Tracker</span>
             <span>—</span>
-            <span>Zero-Cost Unified DSA Pedagogy &amp; Automation Platform</span>
+            <span>Live Real-Time Multi-Platform DSA Tracker</span>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
             <span>LeetCode GraphQL</span>

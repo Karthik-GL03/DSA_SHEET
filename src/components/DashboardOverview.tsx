@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   UserProfile, 
   PlatformState, 
@@ -15,7 +15,11 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
-  ArrowUpRight
+  ArrowUpRight,
+  Flame,
+  Radio,
+  Zap,
+  Globe
 } from 'lucide-react';
 import { 
   PieChart, 
@@ -35,6 +39,8 @@ interface DashboardOverviewProps {
   solves: SolvedProblem[];
   onOpenSync: () => void;
   onNavigateTab: (tab: string) => void;
+  onQuickLoadPreset: (lc: string, cf: string) => void;
+  latency: { leetcode: number | null; codeforces: number | null };
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
@@ -42,7 +48,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   platformState,
   solves,
   onOpenSync,
-  onNavigateTab
+  onNavigateTab,
+  onQuickLoadPreset,
+  latency
 }) => {
   const lc = platformState.leetcode;
   const cf = platformState.codeforces;
@@ -53,10 +61,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const totalGFG = gfg?.totalSolved || 0;
   const aggregateSolves = totalLC + totalCF + totalGFG;
 
-  // Difficulty aggregate
-  const easyCount = (lc?.easySolved || 0) + (gfg?.breakdown?.easy || 0) + Math.round(totalCF * 0.4);
-  const mediumCount = (lc?.mediumSolved || 0) + (gfg?.breakdown?.medium || 0) + Math.round(totalCF * 0.45);
-  const hardCount = (lc?.hardSolved || 0) + (gfg?.breakdown?.hard || 0) + Math.round(totalCF * 0.15);
+  // Real, exact difficulty aggregate
+  const easyCount = (lc?.easySolved || 0) + (gfg?.breakdown?.easy || 0) + (cf?.easySolved || 0);
+  const mediumCount = (lc?.mediumSolved || 0) + (gfg?.breakdown?.medium || 0) + (cf?.mediumSolved || 0);
+  const hardCount = (lc?.hardSolved || 0) + (gfg?.breakdown?.hard || 0) + (cf?.hardSolved || 0);
 
   const difficultyData = [
     { name: 'Easy', count: easyCount, color: '#10b981' },
@@ -70,7 +78,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     { name: 'GeeksforGeeks', solves: totalGFG, fill: '#10b981' },
   ];
 
-  // Combined recent submissions from LC & CF
+  // Combined real-time recent submissions
   const combinedRecent: Array<{
     id: string;
     title: string;
@@ -80,7 +88,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   }> = [];
 
   if (lc?.recentSubmissions) {
-    lc.recentSubmissions.slice(0, 5).forEach((sub) => {
+    lc.recentSubmissions.slice(0, 6).forEach((sub) => {
       combinedRecent.push({
         id: `lc-${sub.id}`,
         title: sub.title,
@@ -92,7 +100,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   }
 
   if (cf?.recentSubmissions) {
-    cf.recentSubmissions.slice(0, 5).forEach((sub) => {
+    cf.recentSubmissions.slice(0, 6).forEach((sub) => {
       combinedRecent.push({
         id: `cf-${sub.id}`,
         title: `${sub.problemIndex}. ${sub.problemName}`,
@@ -103,52 +111,90 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     });
   }
 
+  const hasAnyHandle = profile.handles.leetcode || profile.handles.codeforces || profile.handles.geeksforgeeks;
+
   return (
     <div className="space-y-6">
       
-      {/* Top Profile Summary & Handles Banner */}
+      {/* Real-time Status & Quick Switcher Banner */}
       <div className="glass-panel rounded-2xl p-6 border border-dark-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-white tracking-tight">
-                Welcome back, <span className="bg-gradient-to-r from-indigo-400 to-cyan-300 bg-clip-text text-transparent">{profile.name}</span>
+                Live Algorithmic Dashboard
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Live Tracker Active
-              </span>
+              
+              {/* Real-Time Pulse Indicator */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                <span>REAL-TIME STREAM ACTIVE</span>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Centralized dashboard tracking algorithm consistency, problem sheets completion, and rating trajectory.
-            </p>
+
+            <div className="flex items-center gap-3 mt-2 text-xs text-slate-400 flex-wrap">
+              <span>Latency:</span>
+              <span className="font-mono text-slate-300">
+                LC: {latency.leetcode !== null ? `${latency.leetcode}ms` : 'Connecting...'}
+              </span>
+              <span>•</span>
+              <span className="font-mono text-slate-300">
+                CF: {latency.codeforces !== null ? `${latency.codeforces}ms` : 'Connecting...'}
+              </span>
+              {platformState.lastSyncedAt && (
+                <>
+                  <span>•</span>
+                  <span>Last synced: <strong className="text-slate-200">{platformState.lastSyncedAt}</strong></span>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Connected Handles Pills */}
+          {/* Connected Handles or Quick Load */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span className="text-slate-400 font-mono">LC:</span>
-              <span className="text-slate-200 font-medium">{profile.handles.leetcode || 'Not Linked'}</span>
-            </div>
+            {profile.handles.leetcode && (
+              <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                <span className="text-slate-400 font-mono">LC:</span>
+                <span className="text-slate-200 font-medium">{profile.handles.leetcode}</span>
+              </div>
+            )}
 
-            <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span className="text-slate-400 font-mono">CF:</span>
-              <span className="text-slate-200 font-medium">{profile.handles.codeforces || 'Not Linked'}</span>
-            </div>
-
-            <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-slate-400 font-mono">GFG:</span>
-              <span className="text-slate-200 font-medium">{profile.handles.geeksforgeeks || 'Not Linked'}</span>
-            </div>
+            {profile.handles.codeforces && (
+              <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-blue-400" />
+                <span className="text-slate-400 font-mono">CF:</span>
+                <span className="text-slate-200 font-medium">{profile.handles.codeforces}</span>
+              </div>
+            )}
 
             <button
               onClick={onOpenSync}
-              className="px-2.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
             >
-              Configure Handles
+              <Zap className="w-3.5 h-3.5" />
+              <span>{hasAnyHandle ? 'Switch / Edit Handles' : 'Connect Your Public Profile'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Demo Selector if user wants to test live data immediately */}
+        <div className="mt-4 pt-4 border-t border-dark-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <span className="text-slate-400">
+            Want to test live extraction right now? Try top public competitive profiles:
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onQuickLoadPreset('neal_wu', 'neal')}
+              className="px-2.5 py-1 rounded-lg bg-dark-900 hover:bg-dark-800 text-slate-300 border border-dark-700 text-xs font-mono transition-colors"
+            >
+              🚀 Neal Wu (LC + CF)
+            </button>
+            <button
+              onClick={() => onQuickLoadPreset('', 'tourist')}
+              className="px-2.5 py-1 rounded-lg bg-dark-900 hover:bg-dark-800 text-slate-300 border border-dark-700 text-xs font-mono transition-colors"
+            >
+              🏆 Gennady / tourist (CF)
             </button>
           </div>
         </div>
@@ -160,7 +206,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         {/* Total Solved Aggregate */}
         <div className="glass-panel glass-panel-hover rounded-2xl p-5 border border-dark-800">
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Total Aggregated Solves</span>
+            <span className="text-xs font-medium uppercase tracking-wider">Live Aggregated Solves</span>
             <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -184,7 +230,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="text-3xl font-extrabold text-amber-400 tracking-tight">{totalLC}</div>
           <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
             <span>Global Rank:</span>
-            <span className="font-mono text-slate-200">#{lc?.ranking ? lc.ranking.toLocaleString() : 'N/A'}</span>
+            <span className="font-mono text-slate-200">
+              {lc?.ranking ? `#${lc.ranking.toLocaleString()}` : (profile.handles.leetcode ? 'Loaded' : 'No Handle')}
+            </span>
           </div>
         </div>
 
@@ -202,7 +250,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
           <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
             <span>Max Rating:</span>
-            <span className="font-mono text-cyan-300">{cf?.maxRating || 0} ({cf?.maxRank || 'N/A'})</span>
+            <span className="font-mono text-cyan-300">
+              {cf?.maxRating ? `${cf.maxRating} (${cf.maxRank})` : 'N/A'}
+            </span>
           </div>
         </div>
 
@@ -230,8 +280,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="glass-panel rounded-2xl p-6 border border-dark-800">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-bold text-base text-white">Difficulty Breakdown</h3>
-              <p className="text-xs text-slate-400">Distribution across all combined solves</p>
+              <h3 className="font-bold text-base text-white">Live Difficulty Breakdown</h3>
+              <p className="text-xs text-slate-400">Combined totals from verified accepted solutions</p>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-slate-300">Easy ({easyCount})</span></div>
@@ -269,8 +319,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="glass-panel rounded-2xl p-6 border border-dark-800">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-bold text-base text-white">Solves by Platform</h3>
-              <p className="text-xs text-slate-400">Volume distribution across competitive platforms</p>
+              <h3 className="font-bold text-base text-white">Live Solves by Platform</h3>
+              <p className="text-xs text-slate-400">Real-time breakdown between LeetCode, Codeforces &amp; GFG</p>
             </div>
           </div>
 
@@ -298,15 +348,15 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               <Clock className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Recent Accepted Submissions</h3>
-              <p className="text-xs text-slate-400">Live solved problems queried from official APIs</p>
+              <h3 className="font-bold text-base text-white">Live Accepted Submissions Stream</h3>
+              <p className="text-xs text-slate-400">Directly fetched from platform APIs</p>
             </div>
           </div>
           <button
             onClick={() => onNavigateTab('curriculum')}
             className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-medium"
           >
-            <span>Match with Curricula</span>
+            <span>Cross-reference Curricula</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -341,7 +391,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             ))
           ) : (
             <div className="py-8 text-center text-slate-400 text-xs">
-              <p>No recent submissions synced yet. Click &quot;Configure Handles&quot; or &quot;Sync Data&quot; to fetch your real solves.</p>
+              <p>No recent submissions synced yet. Connect your handles above to pull your live submissions!</p>
             </div>
           )}
         </div>

@@ -83,7 +83,11 @@ export interface CodeforcesProfileData {
   rank: string;
   maxRank: string;
   totalSolved: number;
+  easySolved?: number;
+  mediumSolved?: number;
+  hardSolved?: number;
   contribution: number;
+  submissionCalendar?: Record<string, number>;
   recentSubmissions: Array<{
     id: number;
     contestId?: number;

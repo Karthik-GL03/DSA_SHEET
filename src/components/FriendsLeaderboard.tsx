@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { UserProfile, FriendProfile } from '@/lib/types';
-import { Users, Trophy, Flame, Plus, ShieldCheck, ExternalLink, X } from 'lucide-react';
+import { Users, Trophy, Flame, Plus, ShieldCheck, ExternalLink, X, RefreshCw } from 'lucide-react';
 
 interface FriendsLeaderboardProps {
   profile: UserProfile;
@@ -10,6 +10,7 @@ interface FriendsLeaderboardProps {
   userRating: number;
   onAddFriend: (friend: FriendProfile) => void;
   onRemoveFriend: (id: string) => void;
+  onUpdateFriend: (id: string, updated: Partial<FriendProfile>) => void;
 }
 
 export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
@@ -17,12 +18,14 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
   totalUserSolves,
   userRating,
   onAddFriend,
-  onRemoveFriend
+  onRemoveFriend,
+  onUpdateFriend
 }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [friendName, setFriendName] = useState('');
   const [lcHandle, setLcHandle] = useState('');
   const [cfHandle, setCfHandle] = useState('');
+  const [isSyncingFriends, setIsSyncingFriends] = useState(false);
 
   // Assemble leaderboard including current user
   const entries = [
@@ -44,11 +47,49 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
   // Sort by total solves descending
   entries.sort((a, b) => b.totalSolved - a.totalSolved);
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const syncFriendLiveStats = async (f: FriendProfile) => {
+    let solves = f.totalSolved;
+    let rating = f.cfRating;
+    let streak = f.streak;
+
+    if (f.handles.codeforces) {
+      try {
+        const res = await fetch(`/api/platforms/codeforces?handle=${encodeURIComponent(f.handles.codeforces)}`);
+        const data = await res.json();
+        if (res.ok && !data.error) {
+          rating = data.rating || rating;
+          solves = data.totalSolved || solves;
+        }
+      } catch (e) {}
+    }
+
+    if (f.handles.leetcode) {
+      try {
+        const res = await fetch(`/api/platforms/leetcode?username=${encodeURIComponent(f.handles.leetcode)}`);
+        const data = await res.json();
+        if (res.ok && !data.error) {
+          solves = (solves || 0) + (data.totalSolved || 0);
+          streak = data.streak || streak;
+        }
+      } catch (e) {}
+    }
+
+    onUpdateFriend(f.id, { totalSolved: solves, cfRating: rating, streak });
+  };
+
+  const handleSyncAllFriends = async () => {
+    setIsSyncingFriends(true);
+    for (const f of profile.friends) {
+      await syncFriendLiveStats(f);
+    }
+    setIsSyncingFriends(false);
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!friendName.trim()) return;
 
-    onAddFriend({
+    const newFriend: FriendProfile = {
       id: `fr-${Date.now()}`,
       name: friendName.trim(),
       handles: {
@@ -56,15 +97,20 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
         codeforces: cfHandle.trim(),
         geeksforgeeks: '',
       },
-      totalSolved: Math.floor(Math.random() * 200) + 150, // Initial estimate until synced
-      streak: Math.floor(Math.random() * 14) + 1,
-      cfRating: cfHandle ? 1400 : undefined
-    });
+      totalSolved: 0,
+      streak: 0,
+      cfRating: undefined
+    };
+
+    onAddFriend(newFriend);
+    setIsAddModalOpen(false);
+
+    // Immediately trigger live sync for the new friend
+    syncFriendLiveStats(newFriend);
 
     setFriendName('');
     setLcHandle('');
     setCfHandle('');
-    setIsAddModalOpen(false);
   };
 
   return (
@@ -78,20 +124,31 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
               <Trophy className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-tight">Peer Consistency & Solve Leaderboard</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight">Real-Time Peer Leaderboard</h2>
               <p className="text-xs text-slate-400">
-                Track and compare daily algorithm practice streaks and solve volume with friends
+                Live rankings queried directly from LeetCode GraphQL &amp; Codeforces APIs
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Connect Friend Handle</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={handleSyncAllFriends}
+              disabled={isSyncingFriends}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-dark-800 hover:bg-dark-700 text-slate-300 text-xs font-medium border border-dark-700 transition-all disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFriends ? 'animate-spin' : ''}`} />
+              <span>{isSyncingFriends ? 'Syncing Peers...' : 'Refresh Live Stats'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Connect Peer Handle</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -104,7 +161,7 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
                 <th className="py-3.5 px-4 w-12 text-center">Rank</th>
                 <th className="py-3.5 px-4">Coder</th>
                 <th className="py-3.5 px-4 text-center">Active Streak</th>
-                <th className="py-3.5 px-4 text-center">Total Solves</th>
+                <th className="py-3.5 px-4 text-center">Live Solves</th>
                 <th className="py-3.5 px-4 text-center">CF Rating</th>
                 <th className="py-3.5 px-4">Handles</th>
                 <th className="py-3.5 px-4 w-16 text-right">Actions</th>
@@ -113,7 +170,6 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
             <tbody className="divide-y divide-dark-800/60 font-medium">
               {entries.map((entry, index) => {
                 const rank = index + 1;
-                const isTop3 = rank <= 3;
                 const rankColor = 
                   rank === 1 ? 'text-amber-400 bg-amber-500/10' :
                   rank === 2 ? 'text-slate-300 bg-slate-400/10' :
@@ -205,7 +261,7 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="glass-panel w-full max-w-md rounded-2xl border border-dark-700 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-dark-800 mb-4">
-              <h3 className="font-bold text-base text-white">Add Peer for Comparison</h3>
+              <h3 className="font-bold text-base text-white">Add Peer for Real-Time Tracking</h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-white"
@@ -244,9 +300,13 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
                   type="text"
                   value={cfHandle}
                   onChange={(e) => setCfHandle(e.target.value)}
-                  placeholder="e.g. jsmith"
+                  placeholder="e.g. tourist"
                   className="w-full px-3 py-2 rounded-xl bg-dark-900 border border-dark-800 text-xs text-white focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+
+              <div className="text-[11px] text-slate-400">
+                ⚡ Upon saving, AlgoPulse will live-query their official profile and populate real metrics!
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-dark-800">
@@ -261,7 +321,7 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md"
                 >
-                  Add to Leaderboard
+                  Add &amp; Fetch Live Stats
                 </button>
               </div>
             </form>
