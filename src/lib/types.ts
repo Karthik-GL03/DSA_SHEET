@@ -6,6 +6,11 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string;
+  bio?: string;
+  timezone?: string;
+  isAuthenticated?: boolean;
+  supabaseUserId?: string;
   handles: {
     leetcode: string;
     codeforces: string;

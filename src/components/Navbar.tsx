@@ -11,9 +11,12 @@ import {
   FileText, 
   Users, 
   BarChart3, 
-  Layers
+  User as UserIcon,
+  ShieldCheck,
+  Database
 } from 'lucide-react';
 import { UserProfile } from '@/lib/types';
+import { isSupabaseConfigured } from '@/lib/supabase';
 
 interface NavbarProps {
   activeTab: string;
@@ -21,6 +24,8 @@ interface NavbarProps {
   profile: UserProfile;
   onOpenSync: () => void;
   onOpenNotifications: () => void;
+  onOpenAuth: () => void;
+  onOpenProfileSettings: () => void;
   isSyncing: boolean;
 }
 
@@ -30,6 +35,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   profile,
   onOpenSync,
   onOpenNotifications,
+  onOpenAuth,
+  onOpenProfileSettings,
   isSyncing
 }) => {
   const navItems = [
@@ -39,6 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'notes', label: 'Revision Vault', icon: FileText },
     { id: 'leaderboard', label: 'Leaderboard', icon: Users },
   ];
+
+  const hasCloud = isSupabaseConfigured();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-dark-800 bg-dark-950/80 backdrop-blur-md">
@@ -55,13 +64,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
-                  AlgoPulse
+                  DSA Flow
                 </span>
                 <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  Unified DSA
+                  Real-Time
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-mono hidden sm:block">Automated Pedagogy & Streak Engine</p>
+              <p className="text-[11px] text-slate-400 font-mono hidden sm:block">Automated Pedagogy &amp; Streak Engine</p>
             </div>
           </div>
 
@@ -88,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right Action Icons & Streak Badge */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             
             {/* Streak Badge */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold text-xs glow-amber">
@@ -122,6 +131,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Bell className="w-4 h-4" />
             </button>
+
+            {/* Auth / Profile Button */}
+            {profile.isAuthenticated ? (
+              <button
+                onClick={onOpenProfileSettings}
+                className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-xl bg-dark-900 border border-dark-700 hover:border-indigo-500/40 transition-all text-xs"
+                title="Account & Cloud Sync Settings"
+              >
+                <img
+                  src={profile.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=60&h=60&fit=crop'}
+                  alt={profile.name}
+                  className="w-6 h-6 rounded-lg object-cover border border-indigo-500/30"
+                />
+                <span className="font-semibold text-slate-200 hidden sm:inline">{profile.name}</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </button>
+            ) : (
+              <button
+                onClick={onOpenAuth}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-200 border border-dark-700 hover:border-indigo-500/40 text-xs font-medium transition-all"
+                title="Sign In or Register"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Sign In</span>
+              </button>
+            )}
 
           </div>
 

@@ -12,6 +12,8 @@ import { NotesVault } from '@/components/NotesVault';
 import { FriendsLeaderboard } from '@/components/FriendsLeaderboard';
 import { PlatformSyncModal } from '@/components/PlatformSyncModal';
 import { NotificationSettingsModal } from '@/components/NotificationSettingsModal';
+import { AuthModal } from '@/components/AuthModal';
+import { ProfileSettingsModal } from '@/components/ProfileSettingsModal';
 
 import { 
   UserProfile, 
@@ -31,6 +33,13 @@ import {
   calculateStreaks, 
   matchSolvedCurriculum 
 } from '@/lib/storage';
+import { getSupabase } from '@/lib/supabase';
+import { 
+  syncUserProfileToSupabase, 
+  syncNoteToSupabase, 
+  deleteNoteFromSupabase, 
+  fetchUserDataFromSupabase 
+} from '@/lib/supabaseSync';
 
 import striverData from '@/data/curricula/striver-a2z.json';
 import neetcodeData from '@/data/curricula/neetcode-150.json';
@@ -39,6 +48,8 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isProfileSettingsModalOpen, setIsProfileSettingsModalOpen] = useState<boolean>(false);
   const [activeNoteToEdit, setActiveNoteToEdit] = useState<ProblemNote | null>(null);
 
   // Latency telemetry
@@ -84,6 +95,101 @@ export default function HomePage() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
+  // Supabase Auth and Realtime Subscription Setup
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    // 1. Check existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleSupabaseUserLogin(session.user);
+      }
+    });
+
+    // 2. Auth state changes listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        handleSupabaseUserLogin(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setProfile(prev => ({ ...prev, isAuthenticated: false, supabaseUserId: undefined }));
+      }
+    });
+
+    // 3. Setup Supabase Realtime channel for live cross-device sync
+    const realtimeChannel = supabase
+      .channel('realtime_dsa_flow_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notes' }, (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const newNote: ProblemNote = {
+            id: payload.new.id || `note-${Date.now()}`,
+            problemSlug: payload.new.problem_slug,
+            problemTitle: payload.new.problem_title,
+            platform: payload.new.platform,
+            difficulty: 'Medium',
+            content: payload.new.content,
+            approach: payload.new.approach_summary,
+            timeComplexity: payload.new.time_complexity,
+            spaceComplexity: payload.new.space_complexity,
+            tags: payload.new.tags || [],
+            isFavorite: payload.new.is_favorite || false,
+            createdAt: payload.new.created_at,
+            updatedAt: payload.new.updated_at,
+          };
+          setNotes(prev => {
+            const filtered = prev.filter(n => n.problemSlug !== newNote.problemSlug);
+            return [newNote, ...filtered];
+          });
+        } else if (payload.eventType === 'DELETE') {
+          setNotes(prev => prev.filter(n => n.problemSlug !== payload.old?.problem_slug));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solves' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const slug = payload.new.problem_slug?.toLowerCase();
+          if (slug) {
+            setSolvedSlugs(prev => new Set([...Array.from(prev), slug]));
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(realtimeChannel);
+    };
+  }, []);
+
+  const handleSupabaseUserLogin = async (user: any) => {
+    const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Coder';
+    const { profile: cloudProfile, notes: cloudNotes, solvedSlugs: cloudSlugs } = await fetchUserDataFromSupabase(user.id);
+
+    setProfile(prev => {
+      const merged: UserProfile = {
+        ...prev,
+        ...cloudProfile,
+        id: user.id,
+        supabaseUserId: user.id,
+        email: user.email || prev.email,
+        name: cloudProfile?.name || displayName,
+        isAuthenticated: true,
+        handles: cloudProfile?.handles || prev.handles,
+      };
+      setLocalStorage('dsa_tracker_profile', merged);
+      return merged;
+    });
+
+    if (cloudNotes.length > 0) {
+      setNotes(cloudNotes);
+      setLocalStorage('dsa_tracker_notes', cloudNotes);
+    }
+
+    if (cloudSlugs.length > 0) {
+      setSolvedSlugs(prev => new Set([...Array.from(prev), ...cloudSlugs]));
+      setLocalStorage('dsa_tracker_solved_slugs', Array.from(new Set([...Array.from(solvedSlugs), ...cloudSlugs])));
+    }
+  };
+
   // Load from LocalStorage on mount
   useEffect(() => {
     const savedProfile = getLocalStorage<UserProfile>('dsa_tracker_profile', DEFAULT_PROFILE);
@@ -127,10 +233,13 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Save changes to localStorage
+  // Save changes to localStorage and Supabase
   const updateProfile = (newProfile: UserProfile) => {
     setProfile(newProfile);
     setLocalStorage('dsa_tracker_profile', newProfile);
+    if (newProfile.supabaseUserId) {
+      syncUserProfileToSupabase(newProfile, newProfile.supabaseUserId);
+    }
   };
 
   const updateNotes = (newNotes: ProblemNote[]) => {
@@ -198,7 +307,6 @@ export default function HomePage() {
         if (res.ok && !data.error) {
           cfData = data;
           if (data.submissionCalendar) {
-            // Merge Codeforces calendar
             for (const [day, count] of Object.entries(data.submissionCalendar)) {
               mergedCalendar[day] = (mergedCalendar[day] || 0) + (count as number);
             }
@@ -320,11 +428,21 @@ export default function HomePage() {
       nextNotes = [note, ...notes];
     }
     updateNotes(nextNotes);
+
+    // Sync note up to Supabase if authenticated
+    if (profile.supabaseUserId) {
+      syncNoteToSupabase(note, profile.supabaseUserId);
+    }
   };
 
   const handleDeleteNote = (id: string) => {
+    const noteToDelete = notes.find(n => n.id === id);
     const nextNotes = notes.filter(n => n.id !== id);
     updateNotes(nextNotes);
+
+    if (noteToDelete && profile.supabaseUserId) {
+      deleteNoteFromSupabase(noteToDelete.problemSlug, profile.supabaseUserId);
+    }
   };
 
   const handleOpenNoteForProblem = (problem: CurriculumProblem) => {
@@ -400,6 +518,17 @@ export default function HomePage() {
                           (platformState.codeforces?.totalSolved || 0) + 
                           (platformState.geeksforgeeks?.totalSolved || 0);
 
+  // Sign out handler
+  const handleSignOut = async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    const cleanDefault = { ...DEFAULT_PROFILE, isAuthenticated: false };
+    setProfile(cleanDefault);
+    setLocalStorage('dsa_tracker_profile', cleanDefault);
+  };
+
   return (
     <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col font-sans">
       
@@ -410,6 +539,8 @@ export default function HomePage() {
         profile={profile}
         onOpenSync={() => setIsSyncModalOpen(true)}
         onOpenNotifications={() => setIsNotificationModalOpen(true)}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfileSettings={() => setIsProfileSettingsModalOpen(true)}
         isSyncing={platformState.isSyncing}
       />
 
@@ -513,16 +644,16 @@ export default function HomePage() {
       <footer className="border-t border-dark-800 bg-dark-900/60 py-6 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-300">AlgoPulse Tracker</span>
+            <span className="font-semibold text-slate-300">DSA Flow Tracker</span>
             <span>—</span>
-            <span>Live Real-Time Multi-Platform DSA Tracker</span>
+            <span>Real-Time Multi-Platform DSA Practice &amp; Consistency Platform</span>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
             <span>LeetCode GraphQL</span>
             <span>•</span>
             <span>Codeforces REST</span>
             <span>•</span>
-            <span>GFG TLS Scraper</span>
+            <span>Supabase Realtime</span>
             <span>•</span>
             <span>Telegram Bot API</span>
           </div>
@@ -555,6 +686,37 @@ export default function HomePage() {
             notificationSettings: settings.notificationSettings,
           });
         }}
+      />
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={({ id, email, name }) => {
+          updateProfile({
+            ...profile,
+            id,
+            supabaseUserId: id,
+            email,
+            name,
+            isAuthenticated: true,
+          });
+        }}
+        onOpenSupabaseConfig={() => {
+          setIsAuthModalOpen(false);
+          setIsProfileSettingsModalOpen(true);
+        }}
+      />
+
+      {/* Profile Settings Modal */}
+      <ProfileSettingsModal
+        isOpen={isProfileSettingsModalOpen}
+        onClose={() => setIsProfileSettingsModalOpen(false)}
+        profile={profile}
+        onUpdateProfile={(updated) => {
+          updateProfile({ ...profile, ...updated });
+        }}
+        onSignOut={handleSignOut}
       />
 
     </div>
