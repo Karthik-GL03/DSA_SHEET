@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { UserProfile, FriendProfile } from '@/lib/types';
 import { Users, Trophy, Flame, Plus, ShieldCheck, ExternalLink, X, RefreshCw } from 'lucide-react';
+import { LeetCodeIcon, CodeforcesIcon } from './BrandIcons';
 
 interface FriendsLeaderboardProps {
   profile: UserProfile;
@@ -226,12 +227,18 @@ export const FriendsLeaderboard: React.FC<FriendsLeaderboardProps> = ({
 
                     {/* Handles */}
                     <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-3 flex-wrap">
                         {entry.handles.leetcode && (
-                          <span className="text-amber-300/80">LC: {entry.handles.leetcode}</span>
+                          <span className="flex items-center gap-1 text-amber-300/90">
+                            <LeetCodeIcon className="w-3 h-3" />
+                            <span>{entry.handles.leetcode}</span>
+                          </span>
                         )}
                         {entry.handles.codeforces && (
-                          <span className="text-blue-300/80">CF: {entry.handles.codeforces}</span>
+                          <span className="flex items-center gap-1 text-blue-300/90">
+                            <CodeforcesIcon className="w-3 h-3" />
+                            <span>{entry.handles.codeforces}</span>
+                          </span>
                         )}
                       </div>
                     </td>

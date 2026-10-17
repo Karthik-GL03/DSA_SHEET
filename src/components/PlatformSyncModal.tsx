@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Server
 } from 'lucide-react';
+import { LeetCodeIcon, CodeforcesIcon, GeeksforGeeksIcon } from './BrandIcons';
 
 interface PlatformSyncModalProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ export const PlatformSyncModal: React.FC<PlatformSyncModalProps> = ({
           <div className="p-4 rounded-xl bg-dark-900/80 border border-dark-800">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                <LeetCodeIcon className="w-4 h-4" />
                 <label className="text-xs font-bold text-white uppercase tracking-wider">LeetCode</label>
               </div>
               <span className="text-[10px] font-mono text-slate-400">GraphQL Server Proxy</span>
@@ -112,7 +113,7 @@ export const PlatformSyncModal: React.FC<PlatformSyncModalProps> = ({
           <div className="p-4 rounded-xl bg-dark-900/80 border border-dark-800">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                <CodeforcesIcon className="w-4 h-4" />
                 <label className="text-xs font-bold text-white uppercase tracking-wider">Codeforces</label>
               </div>
               <span className="text-[10px] font-mono text-slate-400">Official REST API (1 req/2s)</span>
@@ -144,7 +145,7 @@ export const PlatformSyncModal: React.FC<PlatformSyncModalProps> = ({
           <div className="p-4 rounded-xl bg-dark-900/80 border border-dark-800">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+                <GeeksforGeeksIcon className="w-4 h-4" />
                 <label className="text-xs font-bold text-white uppercase tracking-wider">GeeksforGeeks</label>
               </div>
               <span className="text-[10px] font-mono text-slate-400">Cloudflare-Resilient Scraper</span>

@@ -17,6 +17,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { CurriculumProblem, Difficulty } from '@/lib/types';
+import { NeetCodeIcon, StriverIcon } from './BrandIcons';
 
 interface CurriculumTrackerProps {
   neetcodeData: any[];
@@ -129,7 +130,7 @@ export const CurriculumTracker: React.FC<CurriculumTrackerProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <NeetCodeIcon className="w-3.5 h-3.5 rounded" />
               <span>NeetCode 150</span>
             </button>
 
@@ -141,7 +142,7 @@ export const CurriculumTracker: React.FC<CurriculumTrackerProps> = ({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
+              <StriverIcon className="w-3.5 h-3.5 rounded" />
               <span>Striver A2Z Sheet</span>
             </button>
           </div>

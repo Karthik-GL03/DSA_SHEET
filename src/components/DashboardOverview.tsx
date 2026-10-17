@@ -32,6 +32,7 @@ import {
   XAxis, 
   YAxis 
 } from 'recharts';
+import { LeetCodeIcon, CodeforcesIcon, GeeksforGeeksIcon } from './BrandIcons';
 
 interface DashboardOverviewProps {
   profile: UserProfile;
@@ -154,17 +155,25 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             {profile.handles.leetcode && (
               <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                <span className="text-slate-400 font-mono">LC:</span>
+                <LeetCodeIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-slate-400 font-mono">LeetCode:</span>
                 <span className="text-slate-200 font-medium">{profile.handles.leetcode}</span>
               </div>
             )}
 
             {profile.handles.codeforces && (
               <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
-                <span className="w-2 h-2 rounded-full bg-blue-400" />
-                <span className="text-slate-400 font-mono">CF:</span>
+                <CodeforcesIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-slate-400 font-mono">Codeforces:</span>
                 <span className="text-slate-200 font-medium">{profile.handles.codeforces}</span>
+              </div>
+            )}
+
+            {profile.handles.geeksforgeeks && (
+              <div className="px-3 py-1.5 rounded-xl bg-dark-900 border border-dark-800 flex items-center gap-2 text-xs">
+                <GeeksforGeeksIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-slate-400 font-mono">GFG:</span>
+                <span className="text-slate-200 font-medium">{profile.handles.geeksforgeeks}</span>
               </div>
             )}
 
@@ -223,8 +232,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="glass-panel glass-panel-hover rounded-2xl p-5 border border-dark-800">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">LeetCode Solved</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
-              <Code2 className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-amber-500/10 flex items-center justify-center">
+              <LeetCodeIcon className="w-5 h-5" />
             </div>
           </div>
           <div className="text-3xl font-extrabold text-amber-400 tracking-tight">{totalLC}</div>
@@ -240,8 +249,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="glass-panel glass-panel-hover rounded-2xl p-5 border border-dark-800">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">Codeforces Rating</span>
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
-              <Trophy className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <CodeforcesIcon className="w-5 h-5" />
             </div>
           </div>
           <div className="text-3xl font-extrabold text-blue-400 tracking-tight">
@@ -260,8 +269,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="glass-panel glass-panel-hover rounded-2xl p-5 border border-dark-800">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-medium uppercase tracking-wider">GeeksforGeeks Score</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
-              <TrendingUp className="w-4 h-4" />
+            <div className="p-2 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+              <GeeksforGeeksIcon className="w-5 h-5" />
             </div>
           </div>
           <div className="text-3xl font-extrabold text-emerald-400 tracking-tight">{gfg?.codingScore || 0}</div>
@@ -366,12 +375,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             combinedRecent.map((sub) => (
               <div key={sub.id} className="py-3 flex items-center justify-between hover:bg-dark-900/40 px-2 rounded-lg transition-colors">
                 <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase flex items-center gap-1.5 ${
                     sub.platform === 'LeetCode' 
                       ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
                       : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                   }`}>
-                    {sub.platform}
+                    {sub.platform === 'LeetCode' ? <LeetCodeIcon className="w-3 h-3" /> : <CodeforcesIcon className="w-3 h-3" />}
+                    <span>{sub.platform}</span>
                   </span>
                   <a 
                     href={sub.url} 

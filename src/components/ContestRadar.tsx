@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ContestItem, CodeforcesProfileData } from '@/lib/types';
 import { Trophy, ExternalLink, Bell, Clock, Calendar, TrendingUp } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { CodeforcesIcon, LeetCodeIcon, CodeChefIcon } from './BrandIcons';
 
 interface ContestRadarProps {
   contests: ContestItem[];
@@ -118,8 +119,11 @@ export const ContestRadar: React.FC<ContestRadarProps> = ({
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${platformColor}`}>
-                  {c.platform}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase border flex items-center gap-1.5 ${platformColor}`}>
+                  {c.platform === 'Codeforces' && <CodeforcesIcon className="w-3 h-3" />}
+                  {c.platform === 'LeetCode' && <LeetCodeIcon className="w-3 h-3" />}
+                  {c.platform === 'CodeChef' && <CodeChefIcon className="w-3 h-3" />}
+                  <span>{c.platform}</span>
                 </span>
 
                 <div className="flex items-center gap-1.5 text-xs font-mono text-indigo-300 bg-dark-900 px-2 py-0.5 rounded-lg border border-dark-800">
